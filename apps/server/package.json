@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "gen:routes": "tsx scripts/generate-routes.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,9 +15,11 @@
   "private": true,
   "dependencies": {
     "@tracking/shared": "workspace:*",
+    "@turf/turf": "^7.4.0",
     "socket.io": "^4.8.4"
   },
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
     "@types/node": "^26.6.7",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
