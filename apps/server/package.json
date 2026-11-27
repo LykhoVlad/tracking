@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "gen:routes": "tsx scripts/generate-routes.ts"
+    "gen:routes": "tsx scripts/generate-routes.ts",
+    "sim:demo": "tsx src/simulation/demo.ts"
   },
   "keywords": [],
   "author": "",
