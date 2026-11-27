@@ -21,18 +21,19 @@ import type {
   RouteProps,
 } from '@tracking/shared';
 import { requireEnv } from '../src/utils/requireEnv';
+import { mulberry32 } from '../src/lib/random';
 
 const MAPBOX_TOKEN = requireEnv('MAPBOX_TOKEN');
 
 const CONFIG = {
-  seed: 42, // змінив seed — отримав інший набір адрес
-  center: [30.5234, 50.4501] as LngLat, // центр Києва
+  seed: 42,
+  center: [30.5234, 50.4501] as LngLat,
   serviceRadiusKm: 10,
   destinationsCount: 40,
-  minRouteKm: 2, // занадто короткі маршрути нецікаві
+  minRouteKm: 2,
   maxRouteKm: 20,
   maxSnapDistanceM: 300,
-  requestDelayMs: 250, // пауза між запитами, щоб не впертися в rate limit
+  requestDelayMs: 250,
   outDir: path.resolve('data'),
 };
 
@@ -40,16 +41,6 @@ const DEPOTS: { id: string; name: string; coords: LngLat }[] = [
   { id: 'depot-right', name: 'Склад (правий берег)', coords: [30.442, 50.456] },
   { id: 'depot-left', name: 'Склад (лівий берег)', coords: [30.615, 50.44] },
 ];
-
-// mulberry32: крихітний генератор псевдовипадкових чисел із seed
-function mulberry32(seed: number) {
-  return () => {
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 const random = mulberry32(CONFIG.seed);
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -70,15 +61,15 @@ function randomPointInServiceArea(): LngLat {
 interface DirectionsResponse {
   code: string;
   message?: string;
-  routes: { geometry: LineString; distance: number; duration: number }[]; // метри, секунди
+  routes: { geometry: LineString; distance: number; duration: number }[];
   waypoints: { location: LngLat; name: string }[];
 }
 
 async function fetchRoute(from: LngLat, to: LngLat): Promise<DirectionsResponse | null> {
   const coords = `${from.join(',')};${to.join(',')}`;
   const params = new URLSearchParams({
-    geometries: 'geojson', // одразу повернути лінію у форматі GeoJSON
-    overview: 'full', // повна деталізація лінії, а не спрощена
+    geometries: 'geojson',
+    overview: 'full',
     access_token: MAPBOX_TOKEN,
   });
   const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?${params}`;
@@ -87,7 +78,7 @@ async function fetchRoute(from: LngLat, to: LngLat): Promise<DirectionsResponse 
   if (!res.ok) throw new Error(`Mapbox HTTP ${res.status}: ${await res.text()}`);
 
   const data = (await res.json()) as DirectionsResponse;
-  if (data.code !== 'Ok' || data.routes.length === 0) return null; // наприклад, NoRoute
+  if (data.code !== 'Ok' || data.routes.length === 0) return null;
   return data;
 }
 
@@ -102,7 +93,7 @@ function toRouteFeature(
     distanceKm: Number((route.distance / 1000).toFixed(2)),
     durationMin: Number((route.duration / 60).toFixed(1)),
   });
-  // 6 знаків після коми — це точність ~10 см; файл стає помітно меншим
+
   return truncate(feature, { precision: 6 });
 }
 
@@ -119,11 +110,11 @@ async function main() {
     attempts++;
     const candidate = randomPointInServiceArea();
 
-    // 1. Найближчий склад
+    // 1. Nearest depot
     const nearest = nearestPoint(candidate, depotsCollection);
     const depot = DEPOTS[nearest.properties.featureIndex];
 
-    // 2. Маршрут туди
+    // 2. Road to depot
     const outbound = await fetchRoute(depot.coords, candidate);
     await sleep(CONFIG.requestDelayMs);
     if (!outbound) {
@@ -131,7 +122,7 @@ async function main() {
       continue;
     }
 
-    // 3. Чи точка взагалі біля дороги?
+    // 3. Is there even a point by the road?
     const snapped = outbound.waypoints[1].location;
     const snapDistanceM = distance(candidate, snapped, { units: 'meters' });
     if (snapDistanceM > CONFIG.maxSnapDistanceM) {
@@ -139,19 +130,19 @@ async function main() {
       continue;
     }
 
-    // 4. Чи підходить довжина?
+    // 4. Is the length okay?
     const outboundKm = outbound.routes[0].distance / 1000;
     if (outboundKm < CONFIG.minRouteKm || outboundKm > CONFIG.maxRouteKm) {
       console.warn(`⏭  ${outboundKm.toFixed(1)} km is out of range, skip`);
       continue;
     }
 
-    // 5. Маршрут назад: окремий запит, бо через односторонній рух дорога назад може бути іншою
+    // 5. Return route: Please inquire separately, as the return route may be different due to one-way traffic.
     const back = await fetchRoute(snapped, depot.coords);
     await sleep(CONFIG.requestDelayMs);
     if (!back) continue;
 
-    // 6. Зберігаємо
+    // 6. Save
     const destinationId = `dest-${String(destinations.length + 1).padStart(2, '0')}`;
     destinations.push(point(snapped, { id: destinationId, depotId: depot.id }));
     routes.push(
@@ -167,7 +158,7 @@ async function main() {
     );
   }
 
-  // Перехресна перевірка: відстань від API та відстань, порахована Turf
+  // Cross-check: distance from the API and distance calculated by Turf
   const sample = routes[0];
   console.log(
     `🔍 ${sample.properties.id}: API = ${sample.properties.distanceKm} km, ` +
