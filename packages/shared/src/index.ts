@@ -1,11 +1,8 @@
+export * from './geo';
+
 export const SIM_TICK_MS = 1000;
 
-export type VehicleStatus =
-  | 'idle'
-  | 'en_route'
-  | 'delivering'
-  | 'returning'
-  | 'offline';
+export type VehicleStatus = 'idle' | 'en_route' | 'delivering' | 'returning' | 'offline';
 
 export interface Vehicle {
   id: string;

@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":"depot-right","name":"Склад (правий берег)"},"geometry":{"type":"Point","coordinates":[30.442,50.456]}},{"type":"Feature","properties":{"id":"depot-left","name":"Склад (лівий берег)"},"geometry":{"type":"Point","coordinates":[30.615,50.44]}}]}
